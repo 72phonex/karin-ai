@@ -544,4 +544,4 @@ class AutonomousReasoningLoop:
             "response_length": word_count,
             "quality_score": round(quality, 2),
             "what_went_well": "Structured response" if has_structure else "Concise delivery",
-            "what_to_impr
+            "what_to_improve": "Add more depth" if word_count < 50 else "Good coverage",
