@@ -1,21 +1,16 @@
 """
-Karin AI — Flask Web Server
-===========================
-Routes:
-  POST /api/register       — create account
-  POST /api/login          — login, returns session token
-  POST /api/chat           — send message, get Karin's response
-  GET  /api/status         — Karin's emotional state + memory stats
-  GET  /api/memory         — user's memory episodes
-  GET  /api/goals          — active reasoning goals
+Karin AI — Flask Server (HuggingFace Spaces edition)
+=====================================================
+Key difference from Render: HF Spaces disk is ephemeral.
+We use HF Datasets Hub as a persistent store:
+  - On startup: pull latest DB files from HF dataset → /app/karin_data/
+  - Every N messages: push DB files back to HF dataset
+  - On shutdown signal: final push
 
-Owner-only (requires owner keyword in X-Owner-Key header):
-  GET  /api/owner/users    — all users summary
-  GET  /api/owner/user/<id>— full episode list for a user
-  GET  /api/owner/logs     — all login logs
-
-Frontend:
-  GET  /                   — serve the chat UI
+Set these secrets in your HF Space Settings:
+  KARIN_OWNER_KEY   — your owner dashboard password
+  HF_TOKEN          — your HF write token (Settings → Access Tokens)
+  HF_DATASET_REPO   — e.g. "72phonex/karin-data" (create a private dataset repo)
 """
 
 import os
@@ -23,6 +18,8 @@ import json
 import hashlib
 import sqlite3
 import secrets
+import threading
+import shutil
 from datetime import datetime, timedelta
 from pathlib import Path
 from functools import wraps
@@ -37,11 +34,76 @@ app = Flask(__name__, static_folder="static", template_folder="templates")
 app.secret_key = os.environ.get("FLASK_SECRET", secrets.token_hex(32))
 
 # ── Config ─────────────────────────────────────────────────────────────────────
-OWNER_KEY   = os.environ.get("KARIN_OWNER_KEY", "phonex_is_the_creator_2026")
-DB_PATH     = os.environ.get("KARIN_DB", "./karin_data/karin.db")
-MEMORY_DB   = os.environ.get("KARIN_MEMORY_DB", "./karin_data/memory.db")
+OWNER_KEY      = os.environ.get("KARIN_OWNER_KEY", "phonex_is_the_creator_2026")
+HF_TOKEN       = os.environ.get("HF_TOKEN", "")
+HF_DATASET     = os.environ.get("HF_DATASET_REPO", "")   # e.g. "72phonex/karin-data"
+DATA_DIR       = Path("/app/karin_data")
+DB_PATH        = str(DATA_DIR / "karin.db")
+MEMORY_DB      = str(DATA_DIR / "memory.db")
+BACKUP_EVERY   = 10   # push to HF every N messages
 
-Path("./karin_data").mkdir(exist_ok=True)
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+_message_counter = 0
+_backup_lock = threading.Lock()
+
+
+# ── HF Persistence ─────────────────────────────────────────────────────────────
+
+def pull_from_hf():
+    """Download DB files from HF Dataset on startup."""
+    if not HF_TOKEN or not HF_DATASET:
+        print("[Karin] No HF persistence configured — running ephemeral.")
+        return
+    try:
+        from huggingface_hub import hf_hub_download
+        for fname in ["karin.db", "memory.db"]:
+            try:
+                path = hf_hub_download(
+                    repo_id=HF_DATASET,
+                    filename=fname,
+                    repo_type="dataset",
+                    token=HF_TOKEN,
+                    local_dir=str(DATA_DIR)
+                )
+                print(f"[Karin] Restored {fname} from HF dataset.")
+            except Exception as e:
+                print(f"[Karin] {fname} not found on HF (first run?): {e}")
+    except Exception as e:
+        print(f"[Karin] HF pull failed: {e}")
+
+def push_to_hf():
+    """Upload DB files to HF Dataset for persistence."""
+    if not HF_TOKEN or not HF_DATASET:
+        return
+    with _backup_lock:
+        try:
+            from huggingface_hub import HfApi
+            api = HfApi(token=HF_TOKEN)
+            for fname in ["karin.db", "memory.db"]:
+                fpath = DATA_DIR / fname
+                if fpath.exists():
+                    api.upload_file(
+                        path_or_fileobj=str(fpath),
+                        path_in_repo=fname,
+                        repo_id=HF_DATASET,
+                        repo_type="dataset",
+                        token=HF_TOKEN
+                    )
+            print(f"[Karin] DB backed up to HF at {datetime.now().strftime('%H:%M:%S')}")
+        except Exception as e:
+            print(f"[Karin] HF push failed: {e}")
+
+def maybe_backup():
+    global _message_counter
+    _message_counter += 1
+    if _message_counter % BACKUP_EVERY == 0:
+        t = threading.Thread(target=push_to_hf, daemon=True)
+        t.start()
+
+
+# ── Startup: restore data ──────────────────────────────────────────────────────
+pull_from_hf()
+
 
 # ── Singletons ─────────────────────────────────────────────────────────────────
 memory_bank = EpisodicMemoryBank(MEMORY_DB)
@@ -74,7 +136,6 @@ def init_db():
                 last_seen TEXT,
                 total_messages INTEGER DEFAULT 0
             );
-
             CREATE TABLE IF NOT EXISTS sessions (
                 token TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL,
@@ -82,7 +143,6 @@ def init_db():
                 expires_at TEXT NOT NULL,
                 ip_address TEXT
             );
-
             CREATE TABLE IF NOT EXISTS login_logs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id TEXT,
@@ -93,7 +153,6 @@ def init_db():
                 timestamp TEXT,
                 success INTEGER
             );
-
             CREATE TABLE IF NOT EXISTS emotion_states (
                 user_id TEXT PRIMARY KEY,
                 state_json TEXT NOT NULL,
@@ -109,12 +168,14 @@ def hash_password(pw: str) -> str:
     return hashlib.sha256((pw + "karin_salt_2026").encode()).hexdigest()
 
 def get_ip() -> str:
-    return request.headers.get("X-Forwarded-For", request.remote_addr or "unknown").split(",")[0].strip()
+    return request.headers.get("X-Forwarded-For",
+           request.remote_addr or "unknown").split(",")[0].strip()
 
 def log_action(user_id: str, username: str, action: str, success: bool):
     with sqlite3.connect(DB_PATH) as conn:
         conn.execute("""
-            INSERT INTO login_logs (user_id,username,ip_address,user_agent,action,timestamp,success)
+            INSERT INTO login_logs
+            (user_id,username,ip_address,user_agent,action,timestamp,success)
             VALUES (?,?,?,?,?,?,?)
         """, (user_id, username, get_ip(),
               request.headers.get("User-Agent","")[:200],
@@ -167,8 +228,8 @@ def require_auth(f):
             """, (token, datetime.now().isoformat())).fetchone()
         if not row:
             return jsonify({"error": "Invalid or expired session"}), 401
-        request.user_id   = row[0]
-        request.username  = row[1]
+        request.user_id  = row[0]
+        request.username = row[1]
         return f(*args, **kwargs)
     return decorated
 
@@ -189,7 +250,6 @@ def register():
     data = request.get_json() or {}
     username = (data.get("username") or "").strip().lower()
     password = data.get("password") or ""
-
     if not username or not password:
         return jsonify({"error": "Username and password required"}), 400
     if len(username) < 3 or len(username) > 20:
@@ -197,22 +257,21 @@ def register():
     if len(password) < 6:
         return jsonify({"error": "Password must be at least 6 characters"}), 400
     if not username.replace("_","").isalnum():
-        return jsonify({"error": "Username: letters, numbers, underscores only"}), 400
-
+        return jsonify({"error": "Letters, numbers, underscores only"}), 400
     user_id = hashlib.sha256(username.encode()).hexdigest()[:16]
     try:
         with sqlite3.connect(DB_PATH) as conn:
             conn.execute("""
                 INSERT INTO users (id,username,password_hash,created_at)
                 VALUES (?,?,?,?)
-            """, (user_id, username, hash_password(password), datetime.now().isoformat()))
+            """, (user_id, username, hash_password(password),
+                  datetime.now().isoformat()))
     except sqlite3.IntegrityError:
         return jsonify({"error": "Username already taken"}), 409
-
     log_action(user_id, username, "register", True)
-    # Initialise memory decay for new user
     memory_bank.apply_decay(user_id)
-    return jsonify({"message": f"Welcome, {username}! Account created.", "user_id": user_id}), 201
+    maybe_backup()
+    return jsonify({"message": f"Welcome, {username}!", "user_id": user_id}), 201
 
 
 @app.route("/api/login", methods=["POST"])
@@ -220,22 +279,18 @@ def login():
     data = request.get_json() or {}
     username = (data.get("username") or "").strip().lower()
     password = data.get("password") or ""
-
     with sqlite3.connect(DB_PATH) as conn:
         row = conn.execute(
             "SELECT id,username FROM users WHERE username=? AND password_hash=?",
             (username, hash_password(password))
         ).fetchone()
-
     if not row:
         log_action("unknown", username, "login_fail", False)
         return jsonify({"error": "Invalid credentials"}), 401
-
     user_id  = row[0]
     username = row[1]
     token    = secrets.token_urlsafe(32)
     expires  = (datetime.now() + timedelta(days=30)).isoformat()
-
     with sqlite3.connect(DB_PATH) as conn:
         conn.execute("""
             INSERT INTO sessions (token,user_id,created_at,expires_at,ip_address)
@@ -243,19 +298,13 @@ def login():
         """, (token, user_id, datetime.now().isoformat(), expires, get_ip()))
         conn.execute("UPDATE users SET last_seen=? WHERE id=?",
                      (datetime.now().isoformat(), user_id))
-
     log_action(user_id, username, "login", True)
     memory_bank.apply_decay(user_id)
-
-    return jsonify({
-        "token": token,
-        "username": username,
-        "user_id": user_id,
-        "expires_at": expires
-    })
+    return jsonify({"token": token, "username": username,
+                    "user_id": user_id, "expires_at": expires})
 
 
-# ── Chat Route ─────────────────────────────────────────────────────────────────
+# ── Chat ───────────────────────────────────────────────────────────────────────
 
 @app.route("/api/chat", methods=["POST"])
 @require_auth
@@ -264,51 +313,29 @@ def chat():
     message = (data.get("message") or "").strip()
     if not message:
         return jsonify({"error": "Empty message"}), 400
-
     user_id  = request.user_id
     username = request.username
-
-    # Load emotional state
-    emotion = load_emotion(user_id)
-
-    # Retrieve relevant memories
+    emotion  = load_emotion(user_id)
     memories = memory_bank.retrieve(user_id, message, top_k=5)
-
-    # Spawn reasoning goal
-    goal = reasoning.maybe_spawn_goal(message, emotion)
-
-    # Build trinity context
-    context = ctx_builder.build(message, memories, emotion,
-                                reasoning.active_goals)
-
-    # Generate response
+    goal     = reasoning.maybe_spawn_goal(message, emotion)
+    context  = ctx_builder.build(message, memories, emotion, reasoning.active_goals)
     response = engine.generate(message, context, emotion, memories, username)
-
-    # Update emotion from interaction
-    valence_d = 0.1 if len(message) > 20 else 0.05
-    arousal_d = 0.05 if "?" in message else -0.02
-    emotion.update(valence_d, arousal_d)
+    emotion.update(0.1 if len(message) > 20 else 0.05,
+                   0.05 if "?" in message else -0.02)
     save_emotion(user_id, emotion)
-
-    # Store episode in memory
-    episode_content = f"User: {message}\nKarin: {response}"
     memory_bank.store(
         user_id=user_id,
-        content=episode_content,
+        content=f"User: {message}\nKarin: {response}",
         episode_type="conversation",
         emotional_valence=emotion.valence,
         importance=0.5 + 0.1*len(message)/100,
         creator_context=f"IP:{get_ip()}"
     )
-
-    # Update message count
     with sqlite3.connect(DB_PATH) as conn:
         conn.execute("UPDATE users SET total_messages=total_messages+1 WHERE id=?",
                      (user_id,))
-
-    # Reflect
     reflection = reasoning.reflect(message, response)
-
+    maybe_backup()
     return jsonify({
         "response": response,
         "mood": emotion.mood,
@@ -324,7 +351,7 @@ def chat():
 @app.route("/api/status")
 @require_auth
 def status():
-    emotion = load_emotion(request.user_id)
+    emotion   = load_emotion(request.user_id)
     mem_stats = memory_bank.stats(request.user_id)
     return jsonify({
         "mood": emotion.mood,
@@ -333,20 +360,22 @@ def status():
         "confidence": round(emotion.confidence, 3),
         "total_mood_updates": emotion.total_updates,
         "memory": mem_stats,
-        "active_goals": len([g for g in reasoning.active_goals if g.get("status")=="active"])
+        "active_goals": len([g for g in reasoning.active_goals
+                              if g.get("status") == "active"])
     })
 
 @app.route("/api/memory")
 @require_auth
 def user_memory():
-    episodes = memory_bank.get_user_episodes(request.user_id, limit=20)
-    stats    = memory_bank.stats(request.user_id)
-    return jsonify({"stats": stats, "recent_episodes": episodes})
+    return jsonify({
+        "stats":   memory_bank.stats(request.user_id),
+        "recent_episodes": memory_bank.get_user_episodes(request.user_id, limit=20)
+    })
 
 @app.route("/api/goals")
 @require_auth
 def goals():
-    active = [g for g in reasoning.active_goals if g.get("status")=="active"]
+    active = [g for g in reasoning.active_goals if g.get("status") == "active"]
     return jsonify({"active_goals": active, "total": len(active)})
 
 
@@ -362,8 +391,8 @@ def owner_users():
         """).fetchall()
     users = [{"id":r[0],"username":r[1],"created_at":r[2],
               "last_seen":r[3],"total_messages":r[4]} for r in rows]
-    mem_summaries = memory_bank.get_all_users_summary()
-    return jsonify({"users": users, "memory_summaries": mem_summaries})
+    return jsonify({"users": users,
+                    "memory_summaries": memory_bank.get_all_users_summary()})
 
 @app.route("/api/owner/user/<user_id>")
 @require_owner
@@ -394,7 +423,15 @@ def owner_logs():
         """, (limit,)).fetchall()
     logs = [{"username":r[0],"ip":r[1],"agent":r[2][:60],
              "action":r[3],"timestamp":r[4],"success":bool(r[5])} for r in rows]
-    return jsonify({"logs": logs, "total": len(logs)})
+    return jsonify({"logs": logs})
+
+@app.route("/api/owner/backup", methods=["POST"])
+@require_owner
+def owner_backup():
+    """Manually trigger a backup to HF."""
+    t = threading.Thread(target=push_to_hf, daemon=True)
+    t.start()
+    return jsonify({"message": "Backup triggered."})
 
 
 # ── Frontend ───────────────────────────────────────────────────────────────────
@@ -405,9 +442,14 @@ def index():
 
 @app.route("/health")
 def health():
-    return jsonify({"status": "ok", "karin": "online", "phase": 0})
+    return jsonify({
+        "status": "ok",
+        "karin": "online",
+        "phase": 0,
+        "persistence": "hf_dataset" if HF_TOKEN else "ephemeral"
+    })
 
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
+    port = int(os.environ.get("PORT", 7860))
     app.run(host="0.0.0.0", port=port, debug=False)
