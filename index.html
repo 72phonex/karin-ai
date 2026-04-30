@@ -1,0 +1,1162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Karin AI</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg:       #0a0a0f;
+    --surface:  #111118;
+    --card:     #16161f;
+    --border:   #1e1e2e;
+    --accent:   #7c6af7;
+    --accent2:  #a78bfa;
+    --green:    #34d399;
+    --red:      #f87171;
+    --yellow:   #fbbf24;
+    --text:     #e2e2f0;
+    --muted:    #5a5a7a;
+    --mono:     'JetBrains Mono', monospace;
+    --sans:     'Syne', sans-serif;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    height: 100dvh;
+    display: flex;
+    overflow: hidden;
+  }
+
+  /* ── Sidebar ── */
+  #sidebar {
+    width: 260px;
+    flex-shrink: 0;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    padding: 24px 16px;
+    gap: 20px;
+    transition: transform .3s;
+  }
+  .logo {
+    display: flex; align-items: center; gap: 10px;
+    padding: 0 4px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .logo-orb {
+    width: 36px; height: 36px; border-radius: 50%;
+    background: conic-gradient(from 180deg, #7c6af7, #a78bfa, #34d399, #7c6af7);
+    animation: spin 8s linear infinite;
+    flex-shrink: 0;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .logo-text { font-size: 1.3rem; font-weight: 800; letter-spacing: -0.5px; }
+  .logo-text span { color: var(--accent2); }
+
+  .nav-section { display: flex; flex-direction: column; gap: 4px; }
+  .nav-label {
+    font-family: var(--mono);
+    font-size: 0.62rem; letter-spacing: 2px;
+    color: var(--muted); text-transform: uppercase;
+    padding: 0 8px 6px;
+  }
+  .nav-btn {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 12px; border-radius: 8px;
+    border: none; background: transparent;
+    color: var(--muted); font-family: var(--sans);
+    font-size: 0.88rem; cursor: pointer;
+    transition: all .2s; text-align: left; width: 100%;
+  }
+  .nav-btn:hover, .nav-btn.active {
+    background: var(--card); color: var(--text);
+  }
+  .nav-btn .icon { font-size: 1rem; width: 18px; text-align: center; }
+
+  /* Mood pill */
+  #mood-pill {
+    margin-top: auto;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px;
+  }
+  .mood-label {
+    font-family: var(--mono); font-size: 0.6rem;
+    letter-spacing: 2px; color: var(--muted);
+    text-transform: uppercase; margin-bottom: 6px;
+  }
+  #mood-text {
+    font-size: 0.9rem; font-weight: 600; color: var(--accent2);
+    text-transform: capitalize;
+  }
+  .mood-bars { display: flex; flex-direction: column; gap: 5px; margin-top: 10px; }
+  .mood-bar-row { display: flex; align-items: center; gap: 8px; }
+  .mood-bar-row span {
+    font-family: var(--mono); font-size: 0.62rem;
+    color: var(--muted); width: 56px;
+  }
+  .bar-track {
+    flex: 1; height: 3px; background: var(--border); border-radius: 2px; overflow: hidden;
+  }
+  .bar-fill {
+    height: 100%; border-radius: 2px;
+    background: var(--accent); transition: width .6s ease;
+  }
+
+  /* ── Main ── */
+  #main {
+    flex: 1; display: flex; flex-direction: column; overflow: hidden;
+  }
+
+  /* ── Auth Screen ── */
+  #auth-screen {
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    background: radial-gradient(ellipse at 50% 0%, #1a1030 0%, var(--bg) 60%);
+  }
+  .auth-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 40px;
+    width: 360px;
+    box-shadow: 0 40px 80px rgba(0,0,0,.6);
+  }
+  .auth-title {
+    font-size: 1.6rem; font-weight: 800;
+    margin-bottom: 4px;
+  }
+  .auth-title span { color: var(--accent2); }
+  .auth-sub {
+    font-family: var(--mono); font-size: 0.72rem;
+    color: var(--muted); margin-bottom: 28px;
+    letter-spacing: 0.5px;
+  }
+  .tabs {
+    display: flex; gap: 4px;
+    background: var(--surface); border-radius: 10px;
+    padding: 4px; margin-bottom: 24px;
+  }
+  .tab {
+    flex: 1; padding: 8px; border: none; border-radius: 7px;
+    font-family: var(--sans); font-size: 0.85rem; font-weight: 600;
+    cursor: pointer; transition: all .2s;
+    background: transparent; color: var(--muted);
+  }
+  .tab.active { background: var(--accent); color: #fff; }
+
+  .field { margin-bottom: 14px; }
+  .field label {
+    display: block; font-family: var(--mono);
+    font-size: 0.65rem; letter-spacing: 1.5px;
+    color: var(--muted); text-transform: uppercase; margin-bottom: 6px;
+  }
+  .field input {
+    width: 100%; background: var(--surface);
+    border: 1px solid var(--border); border-radius: 9px;
+    padding: 11px 14px; color: var(--text);
+    font-family: var(--mono); font-size: 0.88rem;
+    outline: none; transition: border-color .2s;
+  }
+  .field input:focus { border-color: var(--accent); }
+  .auth-btn {
+    width: 100%; padding: 12px; border: none; border-radius: 10px;
+    background: var(--accent); color: #fff;
+    font-family: var(--sans); font-size: 0.95rem; font-weight: 700;
+    cursor: pointer; margin-top: 4px; transition: all .2s;
+  }
+  .auth-btn:hover { background: var(--accent2); transform: translateY(-1px); }
+  .auth-btn:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+  #auth-error {
+    margin-top: 12px; padding: 10px 14px; border-radius: 8px;
+    background: rgba(248,113,113,.1); border: 1px solid rgba(248,113,113,.3);
+    color: var(--red); font-family: var(--mono); font-size: 0.78rem;
+    display: none;
+  }
+
+  /* ── Chat Screen ── */
+  #chat-screen { flex: 1; display: none; flex-direction: column; }
+
+  /* Header */
+  #chat-header {
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+    background: var(--surface);
+  }
+  .header-left { display: flex; align-items: center; gap: 12px; }
+  .header-orb {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 8px var(--green);
+    animation: pulse-glow 2s infinite;
+  }
+  @keyframes pulse-glow {
+    0%,100% { box-shadow: 0 0 6px var(--green); }
+    50% { box-shadow: 0 0 14px var(--green); }
+  }
+  .header-title { font-weight: 700; font-size: 1rem; }
+  .header-sub {
+    font-family: var(--mono); font-size: 0.68rem;
+    color: var(--muted);
+  }
+  .header-right { display: flex; align-items: center; gap: 10px; }
+  #user-badge {
+    font-family: var(--mono); font-size: 0.72rem;
+    color: var(--accent2); background: rgba(124,106,247,.12);
+    border: 1px solid rgba(124,106,247,.25);
+    padding: 4px 10px; border-radius: 20px;
+  }
+  #logout-btn {
+    background: none; border: 1px solid var(--border);
+    border-radius: 7px; padding: 5px 10px;
+    color: var(--muted); font-family: var(--mono);
+    font-size: 0.7rem; cursor: pointer; transition: all .2s;
+  }
+  #logout-btn:hover { border-color: var(--red); color: var(--red); }
+
+  /* Messages */
+  #messages {
+    flex: 1; overflow-y: auto; padding: 24px;
+    display: flex; flex-direction: column; gap: 16px;
+    scroll-behavior: smooth;
+  }
+  #messages::-webkit-scrollbar { width: 4px; }
+  #messages::-webkit-scrollbar-track { background: transparent; }
+  #messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .msg { display: flex; gap: 12px; max-width: 760px; animation: msg-in .25s ease; }
+  @keyframes msg-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .msg.user { align-self: flex-end; flex-direction: row-reverse; }
+  .msg-avatar {
+    width: 34px; height: 34px; border-radius: 50%;
+    flex-shrink: 0; display: flex; align-items: center;
+    justify-content: center; font-size: 0.85rem; font-weight: 700;
+  }
+  .karin-avatar {
+    background: conic-gradient(from 0deg, #7c6af7, #a78bfa, #34d399, #7c6af7);
+    font-family: var(--mono); font-size: 0.7rem; color: #fff;
+  }
+  .user-avatar {
+    background: rgba(124,106,247,.2);
+    border: 1px solid rgba(124,106,247,.3);
+    color: var(--accent2); font-family: var(--mono); font-size: 0.72rem;
+  }
+  .msg-body { display: flex; flex-direction: column; gap: 5px; max-width: calc(100% - 46px); }
+  .msg-name {
+    font-family: var(--mono); font-size: 0.65rem;
+    color: var(--muted); letter-spacing: 0.5px;
+  }
+  .msg-bubble {
+    padding: 12px 16px; border-radius: 14px;
+    font-size: 0.9rem; line-height: 1.65;
+    white-space: pre-wrap; word-break: break-word;
+  }
+  .karin-bubble {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 4px 14px 14px 14px;
+  }
+  .user-bubble {
+    background: rgba(124,106,247,.18);
+    border: 1px solid rgba(124,106,247,.25);
+    border-radius: 14px 4px 14px 14px;
+    color: #e0dbff;
+  }
+  .msg-meta {
+    display: flex; align-items: center; gap: 8px;
+    font-family: var(--mono); font-size: 0.6rem; color: var(--muted);
+  }
+  .meta-tag {
+    padding: 2px 7px; border-radius: 4px;
+    font-size: 0.58rem; letter-spacing: 0.5px;
+  }
+  .tag-mood { background: rgba(124,106,247,.15); color: var(--accent2); }
+  .tag-mem  { background: rgba(52,211,153,.12);  color: var(--green); }
+  .tag-goal { background: rgba(251,191,36,.12);  color: var(--yellow); }
+
+  /* Typing indicator */
+  #typing-indicator {
+    display: none; align-items: center; gap: 12px;
+    padding: 0 24px 8px;
+  }
+  .typing-dots {
+    display: flex; gap: 5px;
+    background: var(--card); border: 1px solid var(--border);
+    padding: 10px 16px; border-radius: 14px;
+  }
+  .typing-dots span {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--accent); animation: bounce .9s infinite;
+  }
+  .typing-dots span:nth-child(2) { animation-delay: .15s; }
+  .typing-dots span:nth-child(3) { animation-delay: .30s; }
+  @keyframes bounce {
+    0%,60%,100% { transform: translateY(0); opacity: .4; }
+    30% { transform: translateY(-6px); opacity: 1; }
+  }
+
+  /* Input bar */
+  #input-bar {
+    padding: 16px 24px;
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+    display: flex; gap: 10px; align-items: flex-end;
+  }
+  #msg-input {
+    flex: 1; background: var(--card);
+    border: 1px solid var(--border); border-radius: 12px;
+    padding: 12px 16px; color: var(--text);
+    font-family: var(--sans); font-size: 0.9rem;
+    outline: none; resize: none; min-height: 46px; max-height: 120px;
+    transition: border-color .2s; line-height: 1.5;
+  }
+  #msg-input:focus { border-color: var(--accent); }
+  #msg-input::placeholder { color: var(--muted); }
+  #send-btn {
+    width: 46px; height: 46px; border-radius: 12px;
+    background: var(--accent); border: none;
+    color: #fff; font-size: 1.1rem;
+    cursor: pointer; transition: all .2s; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #send-btn:hover { background: var(--accent2); transform: translateY(-1px); }
+  #send-btn:disabled { opacity: .4; cursor: not-allowed; transform: none; }
+
+  /* ── Panel: Memory / Goals / Owner ── */
+  #panel {
+    position: fixed; inset: 0; z-index: 100;
+    display: none; align-items: center; justify-content: center;
+    background: rgba(0,0,0,.7); backdrop-filter: blur(4px);
+  }
+  .panel-card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 18px; padding: 28px; width: 560px; max-width: 95vw;
+    max-height: 80vh; display: flex; flex-direction: column;
+    box-shadow: 0 40px 80px rgba(0,0,0,.5);
+  }
+  .panel-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 20px;
+  }
+  .panel-title {
+    font-family: var(--mono); font-size: 0.72rem;
+    letter-spacing: 2px; text-transform: uppercase; color: var(--accent2);
+  }
+  .panel-close {
+    background: none; border: none; color: var(--muted);
+    font-size: 1.2rem; cursor: pointer; padding: 4px;
+    transition: color .2s;
+  }
+  .panel-close:hover { color: var(--text); }
+  .panel-body { overflow-y: auto; flex: 1; }
+  .panel-body::-webkit-scrollbar { width: 3px; }
+  .panel-body::-webkit-scrollbar-thumb { background: var(--border); }
+
+  .stat-grid {
+    display: grid; grid-template-columns: repeat(3,1fr);
+    gap: 10px; margin-bottom: 20px;
+  }
+  .stat-box {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px;
+  }
+  .stat-box .val {
+    font-family: var(--mono); font-size: 1.3rem;
+    font-weight: 500; color: var(--accent2);
+  }
+  .stat-box .lbl {
+    font-family: var(--mono); font-size: 0.6rem;
+    color: var(--muted); text-transform: uppercase;
+    letter-spacing: 1px; margin-top: 3px;
+  }
+  .episode-list { display: flex; flex-direction: column; gap: 8px; }
+  .episode-item {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 9px; padding: 12px;
+  }
+  .ep-summary {
+    font-size: 0.82rem; line-height: 1.5; margin-bottom: 6px;
+    color: rgba(226,226,240,.8);
+  }
+  .ep-meta {
+    display: flex; gap: 8px; flex-wrap: wrap;
+    font-family: var(--mono); font-size: 0.6rem; color: var(--muted);
+  }
+  .ep-badge {
+    padding: 2px 7px; border-radius: 4px;
+    background: rgba(124,106,247,.1); color: var(--accent2);
+  }
+
+  /* Owner panel extras */
+  .owner-user-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 14px; margin-bottom: 8px;
+    cursor: pointer; transition: border-color .2s;
+  }
+  .owner-user-card:hover { border-color: var(--accent); }
+  .owner-user-top {
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .owner-username { font-weight: 700; font-size: 0.9rem; }
+  .owner-badges { display: flex; gap: 6px; }
+  .owner-badge {
+    font-family: var(--mono); font-size: 0.6rem;
+    padding: 2px 8px; border-radius: 4px;
+    background: rgba(52,211,153,.1); color: var(--green);
+  }
+  .owner-sub {
+    font-family: var(--mono); font-size: 0.63rem;
+    color: var(--muted); margin-top: 5px;
+  }
+
+  /* Owner key input */
+  #owner-key-wrap { margin-bottom: 16px; }
+  #owner-key-input {
+    width: 100%; background: var(--surface);
+    border: 1px solid var(--border); border-radius: 9px;
+    padding: 10px 14px; color: var(--text);
+    font-family: var(--mono); font-size: 0.82rem; outline: none;
+    transition: border-color .2s;
+  }
+  #owner-key-input:focus { border-color: var(--accent); }
+  #owner-submit {
+    margin-top: 8px; padding: 9px 20px;
+    background: var(--accent); border: none; border-radius: 8px;
+    color: #fff; font-family: var(--sans); font-size: 0.85rem;
+    font-weight: 600; cursor: pointer;
+  }
+  #owner-error {
+    margin-top: 8px; color: var(--red);
+    font-family: var(--mono); font-size: 0.72rem; display: none;
+  }
+
+  /* Empty state */
+  .empty-state {
+    text-align: center; padding: 32px 16px;
+    color: var(--muted); font-family: var(--mono); font-size: 0.8rem;
+  }
+  .empty-state .icon { font-size: 2rem; margin-bottom: 10px; }
+
+  /* Welcome message */
+  .welcome-wrap {
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; flex: 1; gap: 16px; padding: 40px;
+    text-align: center;
+  }
+  .welcome-orb {
+    width: 64px; height: 64px; border-radius: 50%;
+    background: conic-gradient(from 0deg, #7c6af7, #a78bfa, #34d399, #7c6af7);
+    animation: spin 8s linear infinite;
+  }
+  .welcome-title {
+    font-size: 1.5rem; font-weight: 800; margin-bottom: 4px;
+  }
+  .welcome-sub {
+    font-family: var(--mono); font-size: 0.75rem;
+    color: var(--muted); line-height: 1.7; max-width: 380px;
+  }
+  .welcome-chips {
+    display: flex; flex-wrap: wrap; gap: 8px;
+    justify-content: center; margin-top: 8px;
+  }
+  .chip {
+    padding: 7px 14px; border-radius: 20px;
+    border: 1px solid var(--border); background: var(--card);
+    font-size: 0.8rem; cursor: pointer; transition: all .2s; color: var(--text);
+    font-family: var(--sans);
+  }
+  .chip:hover { border-color: var(--accent); background: rgba(124,106,247,.1); }
+
+  /* Mobile */
+  #sidebar-toggle {
+    display: none; background: none; border: none;
+    color: var(--text); font-size: 1.3rem; cursor: pointer;
+  }
+  @media(max-width: 640px) {
+    #sidebar {
+      position: fixed; z-index: 50; height: 100%;
+      transform: translateX(-100%);
+    }
+    #sidebar.open { transform: translateX(0); }
+    #sidebar-toggle { display: block; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<aside id="sidebar">
+  <div class="logo">
+    <div class="logo-orb"></div>
+    <div class="logo-text">K<span>arin</span></div>
+  </div>
+
+  <nav class="nav-section">
+    <div class="nav-label">Navigation</div>
+    <button class="nav-btn active" onclick="showView('chat')">
+      <span class="icon">◈</span> Chat
+    </button>
+    <button class="nav-btn" onclick="openMemoryPanel()">
+      <span class="icon">◉</span> Memory
+    </button>
+    <button class="nav-btn" onclick="openGoalsPanel()">
+      <span class="icon">◎</span> Goals
+    </button>
+    <button class="nav-btn" onclick="openOwnerPanel()">
+      <span class="icon">◐</span> Owner View
+    </button>
+  </nav>
+
+  <div id="mood-pill">
+    <div class="mood-label">Emotional State</div>
+    <div id="mood-text">—</div>
+    <div class="mood-bars">
+      <div class="mood-bar-row">
+        <span>Valence</span>
+        <div class="bar-track"><div class="bar-fill" id="bar-valence" style="width:50%"></div></div>
+      </div>
+      <div class="mood-bar-row">
+        <span>Arousal</span>
+        <div class="bar-track"><div class="bar-fill" id="bar-arousal" style="width:30%;background:#34d399"></div></div>
+      </div>
+      <div class="mood-bar-row">
+        <span>Confidence</span>
+        <div class="bar-track"><div class="bar-fill" id="bar-conf" style="width:35%;background:#fbbf24"></div></div>
+      </div>
+    </div>
+  </div>
+</aside>
+
+<!-- Main -->
+<main id="main">
+
+  <!-- Auth Screen -->
+  <div id="auth-screen">
+    <div class="auth-card">
+      <div class="auth-title">K<span style="color:var(--accent2)">arin</span> AI</div>
+      <div class="auth-sub">// TRINITY ARCHITECTURE · PHASE 0</div>
+      <div class="tabs">
+        <button class="tab active" onclick="switchTab('login')">Login</button>
+        <button class="tab" onclick="switchTab('register')">Register</button>
+      </div>
+      <div class="field">
+        <label>Username</label>
+        <input type="text" id="auth-username" placeholder="your_username" autocomplete="username"/>
+      </div>
+      <div class="field">
+        <label>Password</label>
+        <input type="password" id="auth-password" placeholder="••••••••" autocomplete="current-password"/>
+      </div>
+      <button class="auth-btn" id="auth-submit" onclick="handleAuth()">Login</button>
+      <div id="auth-error"></div>
+    </div>
+  </div>
+
+  <!-- Chat Screen -->
+  <div id="chat-screen">
+    <header id="chat-header">
+      <div class="header-left">
+        <button id="sidebar-toggle" onclick="toggleSidebar()">☰</button>
+        <div class="header-orb"></div>
+        <div>
+          <div class="header-title">Karin</div>
+          <div class="header-sub" id="header-sub">Trinity Architecture · Phase 0</div>
+        </div>
+      </div>
+      <div class="header-right">
+        <div id="user-badge">—</div>
+        <button id="logout-btn" onclick="logout()">Logout</button>
+      </div>
+    </header>
+
+    <div id="messages">
+      <!-- welcome shown before first message -->
+      <div class="welcome-wrap" id="welcome-wrap">
+        <div class="welcome-orb"></div>
+        <div>
+          <div class="welcome-title">Hello. I'm Karin.</div>
+          <div class="welcome-sub">
+            I have persistent memory, an emotional state, and autonomous reasoning goals.
+            Everything you tell me is stored and recalled across sessions.
+          </div>
+        </div>
+        <div class="welcome-chips">
+          <div class="chip" onclick="useChip(this)">How are you feeling?</div>
+          <div class="chip" onclick="useChip(this)">What can you do?</div>
+          <div class="chip" onclick="useChip(this)">/status</div>
+          <div class="chip" onclick="useChip(this)">Tell me about yourself</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="typing-indicator">
+      <div style="width:34px;height:34px;border-radius:50%;background:conic-gradient(from 0deg,#7c6af7,#a78bfa,#34d399,#7c6af7);flex-shrink:0"></div>
+      <div class="typing-dots">
+        <span></span><span></span><span></span>
+      </div>
+    </div>
+
+    <div id="input-bar">
+      <textarea id="msg-input" placeholder="Message Karin..." rows="1"
+        onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+      <button id="send-btn" onclick="sendMessage()">➤</button>
+    </div>
+  </div>
+
+</main>
+
+<!-- Panel overlay -->
+<div id="panel" onclick="handlePanelClick(event)">
+  <div class="panel-card">
+    <div class="panel-header">
+      <div class="panel-title" id="panel-title">Panel</div>
+      <button class="panel-close" onclick="closePanel()">✕</button>
+    </div>
+    <div class="panel-body" id="panel-body"></div>
+  </div>
+</div>
+
+<script>
+// ── State ─────────────────────────────────────────────────────────────────────
+let token = localStorage.getItem("karin_token") || "";
+let username = localStorage.getItem("karin_username") || "";
+let currentTab = "login";
+let isTyping = false;
+let hasMessages = false;
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+window.addEventListener("DOMContentLoaded", () => {
+  if (token && username) showChat();
+  document.getElementById("auth-username").addEventListener("keydown", e => {
+    if (e.key === "Enter") handleAuth();
+  });
+  document.getElementById("auth-password").addEventListener("keydown", e => {
+    if (e.key === "Enter") handleAuth();
+  });
+});
+
+// ── Auth ──────────────────────────────────────────────────────────────────────
+function switchTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll(".tab").forEach((t,i) => {
+    t.classList.toggle("active", (i===0 && tab==="login") || (i===1 && tab==="register"));
+  });
+  document.getElementById("auth-submit").textContent = tab === "login" ? "Login" : "Register";
+  hideAuthError();
+}
+
+async function handleAuth() {
+  const u = document.getElementById("auth-username").value.trim();
+  const p = document.getElementById("auth-password").value;
+  if (!u || !p) return showAuthError("Please fill in both fields.");
+
+  const btn = document.getElementById("auth-submit");
+  btn.disabled = true; btn.textContent = "...";
+
+  try {
+    const endpoint = currentTab === "login" ? "/api/login" : "/api/register";
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({username: u, password: p})
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      showAuthError(data.error || "Something went wrong.");
+      return;
+    }
+    if (currentTab === "login") {
+      token    = data.token;
+      username = data.username;
+      localStorage.setItem("karin_token", token);
+      localStorage.setItem("karin_username", username);
+      showChat();
+    } else {
+      showAuthError("✓ Account created! You can now log in.", true);
+      switchTab("login");
+    }
+  } catch(e) {
+    showAuthError("Network error. Is the server running?");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = currentTab === "login" ? "Login" : "Register";
+  }
+}
+
+function showAuthError(msg, success=false) {
+  const el = document.getElementById("auth-error");
+  el.textContent = msg;
+  el.style.display = "block";
+  if (success) {
+    el.style.background = "rgba(52,211,153,.1)";
+    el.style.borderColor = "rgba(52,211,153,.3)";
+    el.style.color = "var(--green)";
+  } else {
+    el.style.background = "";
+    el.style.borderColor = "";
+    el.style.color = "";
+  }
+}
+
+function hideAuthError() {
+  document.getElementById("auth-error").style.display = "none";
+}
+
+function showChat() {
+  document.getElementById("auth-screen").style.display = "none";
+  document.getElementById("chat-screen").style.display = "flex";
+  document.getElementById("user-badge").textContent = username;
+  loadStatus();
+  document.getElementById("msg-input").focus();
+}
+
+function logout() {
+  token = ""; username = "";
+  localStorage.removeItem("karin_token");
+  localStorage.removeItem("karin_username");
+  document.getElementById("chat-screen").style.display = "none";
+  document.getElementById("auth-screen").style.display = "flex";
+  document.getElementById("messages").innerHTML = `
+    <div class="welcome-wrap" id="welcome-wrap">
+      <div class="welcome-orb"></div>
+      <div><div class="welcome-title">Hello. I'm Karin.</div>
+      <div class="welcome-sub">I have persistent memory, an emotional state, and autonomous reasoning goals.</div></div>
+      <div class="welcome-chips">
+        <div class="chip" onclick="useChip(this)">How are you feeling?</div>
+        <div class="chip" onclick="useChip(this)">What can you do?</div>
+        <div class="chip" onclick="useChip(this)">/status</div>
+      </div>
+    </div>`;
+  hasMessages = false;
+}
+
+// ── Chat ──────────────────────────────────────────────────────────────────────
+function handleKey(e) {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+}
+
+function autoResize(el) {
+  el.style.height = "auto";
+  el.style.height = Math.min(el.scrollHeight, 120) + "px";
+}
+
+function useChip(el) {
+  document.getElementById("msg-input").value = el.textContent;
+  sendMessage();
+}
+
+async function sendMessage() {
+  const input = document.getElementById("msg-input");
+  const msg   = input.value.trim();
+  if (!msg || isTyping) return;
+
+  // Remove welcome
+  const welcome = document.getElementById("welcome-wrap");
+  if (welcome) welcome.remove();
+
+  addMessage(msg, "user");
+  input.value = ""; input.style.height = "auto";
+  setTyping(true);
+
+  try {
+    const res = await fetch("/api/chat", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`
+      },
+      body: JSON.stringify({message: msg})
+    });
+
+    if (res.status === 401) { logout(); return; }
+
+    const data = await res.json();
+    setTyping(false);
+
+    if (data.error) {
+      addMessage("Error: " + data.error, "karin");
+      return;
+    }
+
+    addMessage(data.response, "karin", {
+      mood: data.mood,
+      memories_used: data.memories_used,
+      goal: data.goal_spawned,
+      quality: data.reflection_quality
+    });
+
+    updateMoodBars(data);
+
+  } catch(e) {
+    setTyping(false);
+    addMessage("Network error. Please try again.", "karin");
+  }
+}
+
+function addMessage(text, role, meta = null) {
+  const container = document.getElementById("messages");
+  const isUser = role === "user";
+  const wrap = document.createElement("div");
+  wrap.className = `msg ${isUser ? "user" : ""}`;
+
+  const initials = isUser
+    ? username.substring(0,2).toUpperCase()
+    : "K";
+
+  const avatarClass = isUser ? "user-avatar" : "karin-avatar";
+  const bubbleClass = isUser ? "user-bubble" : "karin-bubble";
+  const name = isUser ? username : "Karin";
+
+  let metaHTML = "";
+  if (meta && !isUser) {
+    metaHTML = `<div class="msg-meta">
+      ${meta.mood ? `<span class="meta-tag tag-mood">${meta.mood}</span>` : ""}
+      ${meta.memories_used > 0 ? `<span class="meta-tag tag-mem">⟳ ${meta.memories_used} mem</span>` : ""}
+      ${meta.goal ? `<span class="meta-tag tag-goal">⊕ goal</span>` : ""}
+    </div>`;
+  }
+
+  // Format response text (bold **text**)
+  const formatted = text
+    .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+    .replace(/\*(.*?)\*/g, "<em>$1</em>");
+
+  wrap.innerHTML = `
+    <div class="msg-avatar ${avatarClass}">${initials}</div>
+    <div class="msg-body">
+      <div class="msg-name">${name}</div>
+      <div class="msg-bubble ${bubbleClass}">${formatted}</div>
+      ${metaHTML}
+    </div>`;
+
+  container.appendChild(wrap);
+  container.scrollTop = container.scrollHeight;
+  hasMessages = true;
+}
+
+function setTyping(state) {
+  isTyping = state;
+  document.getElementById("typing-indicator").style.display = state ? "flex" : "none";
+  document.getElementById("send-btn").disabled = state;
+  if (state) {
+    const c = document.getElementById("messages");
+    c.scrollTop = c.scrollHeight;
+  }
+}
+
+// ── Status / Mood ─────────────────────────────────────────────────────────────
+async function loadStatus() {
+  try {
+    const res = await fetch("/api/status", {
+      headers: {"Authorization": `Bearer ${token}`}
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    updateMoodBars(data);
+    document.getElementById("header-sub").textContent =
+      `Trinity · Phase 0 · ${data.memory?.total || 0} memories`;
+  } catch(e) {}
+}
+
+function updateMoodBars(data) {
+  if (data.mood) {
+    document.getElementById("mood-text").textContent = data.mood;
+  }
+  if (data.valence !== undefined) {
+    document.getElementById("bar-valence").style.width =
+      ((data.valence + 1) / 2 * 100) + "%";
+  }
+  if (data.arousal !== undefined) {
+    document.getElementById("bar-arousal").style.width =
+      (data.arousal * 100) + "%";
+  }
+  if (data.confidence !== undefined) {
+    document.getElementById("bar-conf").style.width =
+      (data.confidence * 100) + "%";
+  }
+}
+
+// ── Memory Panel ──────────────────────────────────────────────────────────────
+async function openMemoryPanel() {
+  document.getElementById("panel-title").textContent = "EPISODIC MEMORY";
+  document.getElementById("panel-body").innerHTML = "<div class='empty-state'>Loading...</div>";
+  document.getElementById("panel").style.display = "flex";
+
+  try {
+    const res = await fetch("/api/memory", {
+      headers: {"Authorization":`Bearer ${token}`}
+    });
+    const data = await res.json();
+    const s = data.stats;
+    const eps = data.recent_episodes || [];
+
+    let html = `
+      <div class="stat-grid">
+        <div class="stat-box"><div class="val">${s.total}</div><div class="lbl">Episodes</div></div>
+        <div class="stat-box"><div class="val">${s.avg_importance}</div><div class="lbl">Avg Import.</div></div>
+        <div class="stat-box"><div class="val">${s.avg_valence >= 0 ? "+" : ""}${s.avg_valence}</div><div class="lbl">Avg Valence</div></div>
+      </div>`;
+
+    if (eps.length === 0) {
+      html += "<div class='empty-state'><div class='icon'>◉</div>No memories yet. Start chatting.</div>";
+    } else {
+      html += "<div class='episode-list'>";
+      eps.forEach(e => {
+        const d = new Date(e.timestamp);
+        const dateStr = d.toLocaleDateString() + " " + d.toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"});
+        html += `
+          <div class="episode-item">
+            <div class="ep-summary">${escapeHtml(e.summary)}</div>
+            <div class="ep-meta">
+              <span>${dateStr}</span>
+              <span class="ep-badge">imp: ${e.importance}</span>
+              <span class="ep-badge">recalled: ${e.recall_count}×</span>
+              <span class="ep-badge">${e.type}</span>
+            </div>
+          </div>`;
+      });
+      html += "</div>";
+    }
+    document.getElementById("panel-body").innerHTML = html;
+  } catch(e) {
+    document.getElementById("panel-body").innerHTML =
+      "<div class='empty-state'>Failed to load memory.</div>";
+  }
+}
+
+// ── Goals Panel ───────────────────────────────────────────────────────────────
+async function openGoalsPanel() {
+  document.getElementById("panel-title").textContent = "AUTONOMOUS GOALS";
+  document.getElementById("panel-body").innerHTML = "<div class='empty-state'>Loading...</div>";
+  document.getElementById("panel").style.display = "flex";
+
+  try {
+    const res = await fetch("/api/goals", {
+      headers: {"Authorization":`Bearer ${token}`}
+    });
+    const data = await res.json();
+    const goals = data.active_goals || [];
+
+    if (goals.length === 0) {
+      document.getElementById("panel-body").innerHTML =
+        "<div class='empty-state'><div class='icon'>◎</div>No active goals yet. As we talk, I'll generate them.</div>";
+      return;
+    }
+
+    let html = "<div class='episode-list'>";
+    goals.forEach(g => {
+      html += `
+        <div class="episode-item">
+          <div class="ep-summary">${escapeHtml(g.text)}</div>
+          <div class="ep-meta">
+            <span class="ep-badge">${g.type}</span>
+            <span class="ep-badge">priority: ${g.priority?.toFixed(2)}</span>
+            <span class="ep-badge">${g.status}</span>
+          </div>
+        </div>`;
+    });
+    html += "</div>";
+    document.getElementById("panel-body").innerHTML = html;
+  } catch(e) {
+    document.getElementById("panel-body").innerHTML =
+      "<div class='empty-state'>Failed to load goals.</div>";
+  }
+}
+
+// ── Owner Panel ───────────────────────────────────────────────────────────────
+let ownerAuthenticated = false;
+
+function openOwnerPanel() {
+  document.getElementById("panel-title").textContent = "OWNER DASHBOARD";
+  document.getElementById("panel").style.display = "flex";
+
+  if (!ownerAuthenticated) {
+    document.getElementById("panel-body").innerHTML = `
+      <div id="owner-key-wrap">
+        <div class="field">
+          <label>Owner Secret Key</label>
+          <input type="password" id="owner-key-input" placeholder="Enter owner key..."/>
+        </div>
+        <button id="owner-submit" onclick="submitOwnerKey()">Unlock Dashboard</button>
+        <div id="owner-error"></div>
+      </div>`;
+  } else {
+    loadOwnerDashboard();
+  }
+}
+
+async function submitOwnerKey() {
+  const key = document.getElementById("owner-key-input").value;
+  const res = await fetch("/api/owner/users", {
+    headers: {"X-Owner-Key": key}
+  });
+  if (!res.ok) {
+    document.getElementById("owner-error").textContent = "Invalid key.";
+    document.getElementById("owner-error").style.display = "block";
+    return;
+  }
+  ownerAuthenticated = true;
+  window._ownerKey = key;
+  loadOwnerDashboard();
+}
+
+async function loadOwnerDashboard() {
+  document.getElementById("panel-body").innerHTML = "<div class='empty-state'>Loading...</div>";
+  try {
+    const res = await fetch("/api/owner/users", {
+      headers: {"X-Owner-Key": window._ownerKey}
+    });
+    const data = await res.json();
+    const users = data.users || [];
+    const mems  = data.memory_summaries || [];
+
+    // Build a map of user_id → memory data
+    const memMap = {};
+    mems.forEach(m => memMap[m.user_id] = m);
+
+    let html = `
+      <div class="stat-grid">
+        <div class="stat-box"><div class="val">${users.length}</div><div class="lbl">Users</div></div>
+        <div class="stat-box"><div class="val">${mems.reduce((s,m) => s+m.total_episodes,0)}</div><div class="lbl">Total Eps</div></div>
+        <div class="stat-box"><div class="val">${users.reduce((s,u) => s+u.total_messages,0)}</div><div class="lbl">Messages</div></div>
+      </div>`;
+
+    if (users.length === 0) {
+      html += "<div class='empty-state'>No users yet.</div>";
+    } else {
+      users.forEach(u => {
+        const m = memMap[u.id] || {};
+        const last = u.last_seen ? new Date(u.last_seen).toLocaleDateString() : "never";
+        html += `
+          <div class="owner-user-card" onclick="loadOwnerUser('${u.id}','${u.username}')">
+            <div class="owner-user-top">
+              <div class="owner-username">@${u.username}</div>
+              <div class="owner-badges">
+                <span class="owner-badge">${u.total_messages} msgs</span>
+                <span class="owner-badge">${m.total_episodes||0} mem</span>
+              </div>
+            </div>
+            <div class="owner-sub">Last active: ${last} · avg importance: ${m.avg_importance||0}</div>
+          </div>`;
+      });
+    }
+
+    html += `<div style="margin-top:16px">
+      <button onclick="loadOwnerLogs()" style="background:rgba(124,106,247,.15);border:1px solid var(--border);border-radius:8px;padding:8px 16px;color:var(--accent2);font-family:var(--mono);font-size:0.72rem;cursor:pointer;letter-spacing:1px">
+        VIEW LOGIN LOGS
+      </button>
+    </div>`;
+
+    document.getElementById("panel-body").innerHTML = html;
+  } catch(e) {
+    document.getElementById("panel-body").innerHTML = "<div class='empty-state'>Error loading dashboard.</div>";
+  }
+}
+
+async function loadOwnerUser(userId, uname) {
+  document.getElementById("panel-body").innerHTML = "<div class='empty-state'>Loading user...</div>";
+  const res = await fetch(`/api/owner/user/${userId}`, {
+    headers: {"X-Owner-Key": window._ownerKey}
+  });
+  const data = await res.json();
+  const s = data.memory_stats;
+
+  let html = `
+    <button onclick="loadOwnerDashboard()" style="background:none;border:none;color:var(--accent2);font-family:var(--mono);font-size:0.72rem;cursor:pointer;margin-bottom:16px">← Back</button>
+    <div style="font-weight:700;margin-bottom:12px">@${uname}</div>
+    <div class="stat-grid">
+      <div class="stat-box"><div class="val">${data.total_messages}</div><div class="lbl">Messages</div></div>
+      <div class="stat-box"><div class="val">${s.total}</div><div class="lbl">Episodes</div></div>
+      <div class="stat-box"><div class="val">${s.avg_importance}</div><div class="lbl">Avg Imp.</div></div>
+    </div>
+    <div class="episode-list">`;
+
+  (data.episodes || []).forEach(e => {
+    html += `
+      <div class="episode-item">
+        <div class="ep-summary">${escapeHtml(e.summary)}</div>
+        <div class="ep-meta">
+          <span>${new Date(e.timestamp).toLocaleDateString()}</span>
+          <span class="ep-badge">imp: ${e.importance}</span>
+          <span class="ep-badge">recalled: ${e.recall_count}×</span>
+        </div>
+      </div>`;
+  });
+  html += "</div>";
+  document.getElementById("panel-body").innerHTML = html;
+}
+
+async function loadOwnerLogs() {
+  document.getElementById("panel-body").innerHTML = "<div class='empty-state'>Loading logs...</div>";
+  const res = await fetch("/api/owner/logs", {
+    headers: {"X-Owner-Key": window._ownerKey}
+  });
+  const data = await res.json();
+  const logs = data.logs || [];
+
+  let html = `<button onclick="loadOwnerDashboard()" style="background:none;border:none;color:var(--accent2);font-family:var(--mono);font-size:0.72rem;cursor:pointer;margin-bottom:16px">← Back</button>`;
+
+  if (logs.length === 0) {
+    html += "<div class='empty-state'>No logs yet.</div>";
+  } else {
+    html += "<div class='episode-list'>";
+    logs.forEach(l => {
+      const color = l.success ? "var(--green)" : "var(--red)";
+      html += `
+        <div class="episode-item">
+          <div class="ep-summary" style="font-family:var(--mono);font-size:0.78rem">
+            <span style="color:${color}">●</span>
+            <strong>@${l.username}</strong> — ${l.action}
+          </div>
+          <div class="ep-meta">
+            <span>${new Date(l.timestamp).toLocaleString()}</span>
+            <span class="ep-badge">${l.ip}</span>
+          </div>
+        </div>`;
+    });
+    html += "</div>";
+  }
+  document.getElementById("panel-body").innerHTML = html;
+}
+
+// ── Panel helpers ─────────────────────────────────────────────────────────────
+function closePanel() {
+  document.getElementById("panel").style.display = "none";
+}
+
+function handlePanelClick(e) {
+  if (e.target === document.getElementById("panel")) closePanel();
+}
+
+function toggleSidebar() {
+  document.getElementById("sidebar").classList.toggle("open");
+}
+
+function showView(v) {
+  document.querySelectorAll(".nav-btn").forEach(b => b.classList.remove("active"));
+  event.currentTarget.classList.add("active");
+}
+
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g,"&amp;")
+    .replace(/</g,"&lt;")
+    .replace(/>/g,"&gt;")
+    .replace(/"/g,"&quot;");
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: karin-ai
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --workers 1 --timeout 120 --bind 0.0.0.0:$PORT
+    disk:
+      name: karin-data
+      mountPath: /opt/render/project/src/karin_data
+      sizeGB: 1
+    envVars:
+      - key: KARIN_DB
+        value: /opt/render/project/src/karin_data/karin.db
+      - key: KARIN_MEMORY_DB
+        value: /opt/render/project/src/karin_data/memory.db
+      - key: KARIN_OWNER_KEY
+        generateValue: false
+        sync: false
+      - key: FLASK_SECRET
+        generateValue: true

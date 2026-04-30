@@ -1,19 +1,4 @@
-# KARIN — Trinity Architecture
-# Research Project by Phonex (72phonex)
-#
-# Phase 0 (current) — runs on CPU, no GPU needed
-numpy>=1.24.0
-
-# Phase 1 — uncomment when you have Colab / GPU
-# torch>=2.0.0
-# transformers>=4.38.0
-# sentence-transformers>=2.2.0
-
-# Phase 2 — LoRA fine-tuning
-# peft>=0.9.0
-# trl>=0.8.0
-# bitsandbytes>=0.43.0
-# accelerate>=0.27.0
-
-# Dev tools
-pytest>=7.0.0
+flask==3.0.3
+gunicorn==22.0.0
+sentence-transformers==3.0.1
+numpy==1.26.4
